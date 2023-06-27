@@ -3,25 +3,59 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By 
 from bs4 import BeautifulSoup
+import schedule
 import requests
 import random
 import time
 from typing import List
+from enum import Enum
 
 
-OUTPUT_FILE_POWERBALL = "V:/Python Project/lottery_number_api/list_of_winning_numbers_powerball.txt"
-OUTPUT_FILE_MEGAMILLION = "V:/Python Project/lottery_number_api/list_of_winning_numbers_megamillion.txt"
+OUTPUT_FILE_POWERBALL = "V:\Personal Projects\Python Project\lottery_number_api\list_of_winning_numbers_powerball.txt"
+OUTPUT_FILE_MEGAMILLION = "V:\Personal Projects\Python Project\lottery_number_api\list_of_winning_numbers_megamillion.txt"
 URL_MEGAMILLION = "https://www.calottery.com/draw-games/mega-millions#section-content-2-3"
 URL_POWERBALL = "https://www.calottery.com/draw-games/powerball#section-content-2-3"
 
 CHROME_DRIVER_PATH = "V:/Python Project/chromedriver.exe"
 
+class DayofWeek(Enum):
+    SUNDAY = 'sunday'
+    MONDAY = 'monday'
+    TUESDAY = 'tuesday'
+    WEDNESDAY = 'wednesday'
+    THURSDAY = 'thursday'
+    FRIDAY = 'friday'
+    SATURDAY = 'saturday'
+
 # newLine must be join by space before passing to this function
-def prepend_line_to_beginning_of_a_file(FILE: str,newLine: str):
+def prepend_line_to_beginning_of_a_file(FILE: str,lt: List):
     with open(FILE,'r+') as f:
-        content = f.read()
+        top_line = f.readline()
+        content = top_line + f.read() 
+
+        most_recent_winning_numbers = [int(num) for num in top_line.split()]
+
+        result = ""
+        for i in lt:
+            if i == most_recent_winning_numbers:
+                break
+            result += ' '.join(str(num) for num in i) + '\n'
+
         f.seek(0,0)
-        f.write(newLine.rstrip('r\n') + '\n' + content)
+        f.write(result.strip() + '\n' + content)
+    # with open(FILE,'r+') as f:
+    #     top_line = f.readline()
+    #     content = top_line + f.read() 
+    #     most_recent_winning_numbers = [int(num) for num in top_line.split()]
+    #     f.seek(0)
+    #     for i in lt:
+    #         if i == most_recent_winning_numbers:
+    #             break
+    #         f.write(' '.join(str(num) for num in i) + '\n') 
+    #     f.write(content)
+    #     f.truncate()
+
+
 
 # URL= https://portalseven.com/lottery/megamillions_winning_numbers.jsp?fromDate=2022-06-23&toDate=2023-06-23&viewType=3
 # FILE -> File to store, SKIP -> Number to skip from the right 'row_of_nums', for example [1,2,3,4,5] if skip = 1 => [1,2,3,4] otherwise, loop entire list
@@ -70,17 +104,21 @@ def scrap_winning_number_from_calottery_website(URL: str):
     content = driver.find_element(By.ID,"past-winners-accordion")
     rows_data = content.find_elements(By.CLASS_NAME,"card")
 
+    winning_numbers_list = []
     for i in rows_data:
         # Retrive the winning from the webpage
-        winning_numbers_as_string = i.find_element(By.CSS_SELECTOR,".col-12 > div > .sr-only").text
+        uncleaned_winning_numbers_as_string = i.find_element(By.CSS_SELECTOR,".col-12 > div > .sr-only").text
         
         # Clean the text and make it as a list of numbers
-        winning_numbers = clean_the_winning_numbers(winning_numbers_as_string)
-        
-        # prepend the numbers into the destination file
-        prepend_line_to_beginning_of_a_file(OUTPUT_FILE_MEGAMILLION,' '.join(winning_numbers))
+        winning_numbers = clean_the_winning_numbers(uncleaned_winning_numbers_as_string)
+
+        # Append the list of numbers into the list
+        winning_numbers_list.append(winning_numbers)
 
         print(' '.join(winning_numbers))
+
+    # prepend the numbers into the destination file
+    prepend_line_to_beginning_of_a_file(OUTPUT_FILE_MEGAMILLION,winning_numbers_list)
 
 # load the file and return a list
 def load_the_file(FILE:str) -> List[int]:
@@ -128,6 +166,8 @@ def generate_megamillions() -> List[int]:
 
     return generated_numbers
 
+
+#! To be implemented: Adjust the function to update the winning number list by comparing what is on the wesbiste to the most recent one in the file (the first line)
 def update_win_number_list(URL: str, FILE: str):
     #set chrome options
     chrome_options = Options()
@@ -140,23 +180,108 @@ def update_win_number_list(URL: str, FILE: str):
     driver.get(URL)
 
     time.sleep(5)
-    content = driver.find_elements(By.CSS_SELECTOR,"#winningNumbers{} > div.card-body.d-flex.justify-content-center > ul > li".format("15" if URL == URL_MEGAMILLION else "12"))
+    # content = driver.find_elements(By.CSS_SELECTOR,"#winningNumbers{} > div.card-body.d-flex.justify-content-center > ul > li".format("15" if URL == URL_MEGAMILLION else "12"))
+    content = driver.find_elements(By.CSS_SELECTOR,"#past-winners-accordion > .card")
 
-    numbers = []
+    numbers = []#! fix this without use get_attribute
     for i in content:
-        numbers.append(i.find_element(By.TAG_NAME,"span").text)
-        
-    prepend_line_to_beginning_of_a_file(FILE,' '.join(str(num) for num in numbers))
+        tmp = []
+        winning_numbers = i.find_elements(By.CSS_SELECTOR,".row > div.col-12.col-md-4 > div > ul > li")
+        elements = winning_numbers.find_elements(By.TAG_NAME,"span")
+        text_values = [element.text for element in elements]
+        print(text_values)
+        break
+        # for j in winning_numbers:
+        #     # tmp.append(int(j.text))
+        #     print(j.get_attribute("innerHTML"))
+        # break
+            
+        #PastDrawsRow1 > div.col-md-2.col-0.d-none.d-md-block > p > span
+        #Powerball or Superball Number
+        # tmp.append(int(i.find_element(By.CSS_SELECTOR,".row > div.col-md-2.col-0.d-none.d-md-block > p > span").text))
+        # print(i.find_element(By.CSS_SELECTOR,".row > div.col-md-2.col-0.d-none.d-md-block > p > span").text)
+        # numbers.append(tmp)
+    
+    driver.quit()
+    # print(numbers)
+    # prepend_line_to_beginning_of_a_file(FILE,numbers)
+
+
+def daily_update_winning_numbers(URL: str, FILE: str, listDaytoRun: List):
+    def job():
+        update_win_number_list(URL,FILE)
+    
+    for day in listDaytoRun:
+        getattr(schedule.every(), day).at("12:00").do(job)
+
+
 
 if __name__ == "__main__":
     # scrap_past_powerball_winning_numbers("https://portalseven.com/lottery/megamillions_winning_numbers.jsp?fromDate=2022-06-23&toDate=2023-06-23&viewType=3"
     #                                      ,OUTPUT_FILE_MEGAMILLION, 1)
     
-    # scrap_winning_number_from_calottery_website("https://www.calottery.com/draw-games/mega-millions#section-content-2-3")
+    # scrap_winning_number_from_calottery_website(URL_MEGAMILLION)
     
     # print(generate_powerball())
     # print(' '.join(str(num) for num in generate_megamillions()))
-    update_win_number_list(URL_MEGAMILLION,OUTPUT_FILE_MEGAMILLION)
+    # #? MEGA MILLION
+    # update_win_number_list(URL_MEGAMILLION,OUTPUT_FILE_MEGAMILLION)
+
+    #? POWERBALL
+    update_win_number_list(URL_POWERBALL,OUTPUT_FILE_POWERBALL)
+
+    # print(generate_powerball())
+    # print(generate_megamillions())
+
+    # daily_update_winning_numbers(URL_POWERBALL,OUTPUT_FILE_POWERBALL,['monday','wednesday','saturday'])
+    # daily_update_winning_numbers(URL_MEGAMILLION,OUTPUT_FILE_MEGAMILLION,['tuesday','friday'])
+
+    # for job in schedule.jobs:
+    #     print(job.next_run)
+
+    # while True:
+    #     schedule.run_pending()
+    #     time.sleep(1)
+
+    # lt = [
+    #     [13, 62, 65, 67, 69, 14],
+    #     [6, 37, 39, 45, 46, 21],
+    #     [4, 24, 34, 45, 57, 19],
+    #     [8, 10, 19, 44, 47, 4],
+    #     [3, 19, 53, 60, 68, 13],
+    #     [6, 12, 23, 29, 57, 4],
+    #     [3, 16, 19, 36, 60, 25],
+    #     [13, 16, 40, 64, 68, 21],
+    #     [12, 20, 37, 41, 64, 1],
+    #     [3, 10, 22, 65, 66, 19],
+    #     [5, 11, 41, 44, 55, 14],
+    #     [15, 34, 36, 69, 70, 17],
+    #     [1, 2, 23, 40, 45, 15],
+    #     [4, 37, 46, 48, 51, 19],
+    #     [16, 18, 28, 42, 43, 11],
+    #     [3, 15, 16, 32, 41, 9],
+    #     [18, 38, 53, 62, 64, 20],
+    #     [8, 29, 46, 47, 48, 12],
+    #     [3, 21, 29, 46, 63, 9],
+    #     [7, 9, 15, 19, 25, 4]
+    # ]
+
+    # prepend_line_to_beginning_of_a_file('V:/Personal Projects/Python Project/lottery_number_api/test.txt',lt)
+    # with open('V:/Personal Projects/Python Project/lottery_number_api/test.txt','r') as f:
+    #     content = f.read()
+    #     f.seek(0,0)
+    #     ln = f.readline()
+    #     most_recent_winning_numbers = [int(num) for num in ln.split()]
+        
+    #     print(content)
+    #     # print([int(num) for num in content[0].split()])
+
+    #     result = ""
+    #     for i in lt:
+    #         if i == most_recent_winning_numbers:
+    #             break
+    #         result += str(i) + "\n"
+
 
     #! List 
     #todo: Powerball -> Monday, Wednesday, Saturday
