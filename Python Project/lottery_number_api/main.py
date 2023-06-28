@@ -218,7 +218,7 @@ def daily_update_winning_numbers(URL: str, FILE: str, listDaytoRun: List):
         update_win_number_list(URL,FILE)
     
     for day in listDaytoRun:
-        getattr(schedule.every(), day).at("12:00").do(job)
+        getattr(schedule.every(), day).at("23:00").do(job)
 
 app = Flask(__name__)
 
